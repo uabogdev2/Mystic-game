@@ -81,7 +81,7 @@ class _AnimatedBackgroundState extends ConsumerState<AnimatedBackground> with Si
               Positioned.fill(
                 child: AnimatedOpacity(
                   duration: ThemeConstants.animationDuration,
-                  opacity: isDarkMode ? 0.5 : 0.0,
+                  opacity: isDarkMode ? 0.6 : 0.0,
                   child: const _Stars(),
                 ),
               ),
@@ -186,7 +186,7 @@ class StarsPainter extends CustomPainter {
       
       final paint = Paint()
         ..color = ThemeConstants.nightAccent.withOpacity(
-            star.opacity * (0.7 + sin(animationValue * 2 * pi + star.y * 5) * 0.3))
+            star.opacity * (0.9 + sin(animationValue * 2 * pi + star.y * 5) * 0.3))
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(
