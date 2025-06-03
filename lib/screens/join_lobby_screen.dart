@@ -150,15 +150,17 @@ class _JoinLobbyScreenState extends ConsumerState<JoinLobbyScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Rejoindre une partie',
-          style: TextStyle(
-            color: isDark ? Colors.white : primaryColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor:
-            isDark ? Colors.black26 : Colors.white.withOpacity(0.9),
+
+title: Text(
+  'Rejoindre une partie',
+  style: TextStyle(
+    color: isDark ? Colors.white : primaryColor,
+    fontWeight: FontWeight.bold,
+  ),
+),
+backgroundColor: isDark ? Colors.black26 : Colors.white.withOpacity(0.9),
+
+
         elevation: 0,
         iconTheme: IconThemeData(
           color: isDark ? Colors.white : primaryColor,
