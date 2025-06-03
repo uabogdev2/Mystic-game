@@ -1,0 +1,170 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonctions utilitaires
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isInLobby(lobbyData) {
+      return isAuthenticated() && 
+        (lobbyData.playerIds.hasAny([request.auth.uid]));
+    }
+    
+    function isLobbyHost(lobbyData) {
+      return isAuthenticated() && 
+        lobbyData.hostId == request.auth.uid;
+    }
+
+    function isLobbyActive(lobbyData) {
+      return lobbyData.status == 'waiting';
+    }
+
+    function canJoinLobby(lobbyData) {
+      return isLobbyActive(lobbyData) &&
+        lobbyData.playerIds.size() < lobbyData.maxPlayers;
+    }
+
+    // Règles pour la collection users
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+    
+    // Règles pour la collection lobbies
+    match /lobbies/{lobbyId} {
+      // Lecture des lobbies
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated();
+      
+      // Création d'un nouveau lobby
+      allow create: if isAuthenticated() && 
+        request.resource.data.hostId == request.auth.uid &&
+        request.resource.data.playerIds.hasAll([request.auth.uid]) &&
+        request.resource.data.playerNames.size() == request.resource.data.playerIds.size() &&
+        request.resource.data.maxPlayers >= 2 &&
+        request.resource.data.maxPlayers <= 12 &&
+        request.resource.data.status == 'waiting';
+      
+      // Mise à jour du lobby
+      allow update: if isAuthenticated() && (
+        isLobbyHost(resource.data) ||
+        (
+          // Rejoindre/Quitter un lobby
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['playerIds', 'playerNames']) &&
+          (
+            // Rejoindre
+            (
+              request.resource.data.playerIds.size() == resource.data.playerIds.size() + 1 &&
+              request.resource.data.playerNames.size() == resource.data.playerNames.size() + 1
+            ) ||
+            // Quitter
+            (
+              request.resource.data.playerIds.size() == resource.data.playerIds.size() - 1 &&
+              request.resource.data.playerNames.size() == resource.data.playerNames.size() - 1
+            )
+          )
+        )
+      );
+      
+      // Suppression d'un lobby
+      allow delete: if isAuthenticated() && (
+        isLobbyHost(resource.data) ||
+        resource.data.playerIds.size() == 0
+      );
+
+      // Règles pour les messages du lobby
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && 
+          request.resource.data.keys().hasAll(['senderId', 'senderName', 'content', 'timestamp', 'type']) &&
+          (
+            request.resource.data.type == 'system' ||
+            request.resource.data.senderId == request.auth.uid
+          );
+        allow update, delete: if false;
+      }
+      
+      // Règles pour les actions de jeu
+      match /actions/{actionId} {
+        allow read: if isInLobby(get(/databases/$(database)/documents/lobbies/$(lobbyId)).data);
+        allow create: if isInLobby(get(/databases/$(database)/documents/lobbies/$(lobbyId)).data) &&
+          request.resource.data.playerId == request.auth.uid &&
+          request.resource.data.keys().hasAll(['playerId', 'actionType', 'targetId', 'timestamp']);
+      }
+      
+      // Règles pour les votes
+      match /votes/{voteId} {
+        allow read: if isInLobby(get(/databases/$(database)/documents/lobbies/$(lobbyId)).data);
+        allow create, update: if isInLobby(get(/databases/$(database)/documents/lobbies/$(lobbyId)).data) &&
+          request.resource.data.voterId == request.auth.uid &&
+          request.resource.data.keys().hasAll(['voterId', 'targetId', 'timestamp']);
+      }
+    }
+
+    // Fonction pour vérifier si l'utilisateur est membre du jeu
+    function isGameMember(gameId) {
+      return exists(/databases/$(database)/documents/game_members/$(gameId)/members/$(request.auth.uid));
+    }
+
+    // Fonction pour vérifier si l'utilisateur peut envoyer des messages
+    function canSendMessages(gameId) {
+      let path = /databases/$(database)/documents/chat_permissions/$(request.auth.uid + '_' + gameId);
+      return !exists(path) || (get(path).data.canSend == true && get(path).data.isMuted == false);
+    }
+
+    // Règles pour la collection chat_messages
+    match /chat_messages/{messageId} {
+      allow read: if isAuthenticated() && isGameMember(resource.data.gameId);
+      
+      allow create: if isAuthenticated() 
+        && isGameMember(request.resource.data.gameId)
+        && request.resource.data.senderId == request.auth.uid
+        && canSendMessages(request.resource.data.gameId)
+        && request.resource.data.keys().hasAll(['gameId', 'senderId', 'senderName', 'content', 'timestamp', 'messageType', 'chatTheme', 'isDeleted'])
+        && request.resource.data.isDeleted == false;
+
+      allow update: if isAuthenticated() 
+        && resource.data.senderId == request.auth.uid
+        && request.resource.data.gameId == resource.data.gameId
+        && request.resource.data.senderId == resource.data.senderId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted']);
+
+      allow delete: if false;
+    }
+
+    // Règles pour la collection chat_permissions
+    match /chat_permissions/{permissionId} {
+      allow read: if isAuthenticated() 
+        && permissionId.matches(request.auth.uid + '_.*')
+        && isGameMember(resource.data.gameId);
+
+      allow create: if isAuthenticated() 
+        && permissionId == request.auth.uid + '_' + request.resource.data.gameId
+        && request.resource.data.playerId == request.auth.uid
+        && isGameMember(request.resource.data.gameId)
+        && request.resource.data.keys().hasAll(['gameId', 'playerId', 'canSend', 'canReceive', 'isMuted', 'themePreference', 'lastMessageTime']);
+
+      allow update: if isAuthenticated()
+        && resource.data.playerId == request.auth.uid
+        && request.resource.data.gameId == resource.data.gameId
+        && request.resource.data.playerId == resource.data.playerId
+        && request.resource.data.keys().hasAll(['gameId', 'playerId', 'canSend', 'canReceive', 'isMuted', 'themePreference', 'lastMessageTime']);
+
+      allow delete: if false;
+    }
+
+    // Règle par défaut
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 
