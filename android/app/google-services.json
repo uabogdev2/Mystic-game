@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "463750892188",
+    "project_id": "cercle-mystic",
+    "storage_bucket": "cercle-mystic.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463750892188:android:e38d65017390da73373b59",
+        "android_client_info": {
+          "package_name": "com.game.mystic"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "463750892188-rhsbnh3g6gfuuobq0k6j0jhouo2lrrfk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArQiHnoOYKEDq8fQdArg5zQ3TxRo_l8Io"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "463750892188-rhsbnh3g6gfuuobq0k6j0jhouo2lrrfk.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "463750892188-dri649g7cemrcajnm0tol1at0e36200s.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.loupGarouMobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
