@@ -15,19 +15,17 @@ class ChatService {
   final _firestore = FirebaseFirestore.instance;
 
   // Collection references
-  CollectionReference get _messages => _firestore.collection('chat_messages');
-  CollectionReference get _permissions => _firestore.collection('chat_permissions');
+  CollectionReference _messages(String lobbyId) =>
+      _firestore.collection('lobbies').doc(lobbyId).collection('messages');
+  CollectionReference get _permissions =>
+      _firestore.collection('chat_permissions');
 
   // Obtenir le stream des messages
   Stream<List<ChatMessage>> getMessages(String lobbyId) {
-    return _firestore
-        .collection('lobbies')
-        .doc(lobbyId)
-        .collection('messages')
+    return _messages(lobbyId)
         .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) => 
-          snapshot.docs
+        .map((snapshot) => snapshot.docs
             .map((doc) => ChatMessage.fromFirestore(doc))
             .toList());
   }
@@ -51,11 +49,7 @@ class ChatService {
       chatTheme: chatTheme,
     );
 
-    await _firestore
-        .collection('lobbies')
-        .doc(lobbyId)
-        .collection('messages')
-        .add(message.toFirestore());
+    await _messages(lobbyId).add(message.toFirestore());
   }
 
   // Envoyer un message système
@@ -73,9 +67,8 @@ class ChatService {
   }
 
   // Supprimer un message
-  Future<void> deleteMessage(String messageId) async {
-    await _firestore
-        .collection('chat_messages')
+  Future<void> deleteMessage(String lobbyId, String messageId) async {
+    await _messages(lobbyId)
         .doc(messageId)
         .update({'isDeleted': true});
   }
@@ -117,43 +110,38 @@ class ChatService {
 
   // Stream de messages pour un lobby spécifique
   Stream<List<ChatMessage>> streamMessages(String lobbyId) {
-    return _firestore
-        .collection('lobbies')
-        .doc(lobbyId)
-        .collection('messages')
+    return _messages(lobbyId)
         .orderBy('timestamp', descending: true)
         .limit(50)
         .snapshots()
-        .map((snapshot) => 
-          snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
   }
 
   // Stream des messages privés (loups-garous)
   Stream<List<ChatMessage>> streamPrivateMessages(String lobbyId) {
-    return _firestore
-        .collection('lobbies')
-        .doc(lobbyId)
-        .collection('messages')
+    return _messages(lobbyId)
         .where('type', isEqualTo: 'private')
         .orderBy('timestamp', descending: true)
         .limit(50)
         .snapshots()
-        .map((snapshot) => 
-          snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
   }
 
   // Nettoyer les anciens messages
   Future<void> cleanOldMessages(String lobbyId) async {
-    final oldMessages = await _firestore
-        .collection('chat_messages')
-        .where('lobbyId', isEqualTo: lobbyId)
-        .where('timestamp',
-            isLessThan: Timestamp.fromDate(
-                DateTime.now().subtract(const Duration(hours: 24))))
+    final oldMessages = await _messages(lobbyId)
+        .where(
+          'timestamp',
+          isLessThan: Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(hours: 24)),
+          ),
+        )
         .get();
 
     for (var doc in oldMessages.docs) {
       await doc.reference.delete();
     }
   }
-} 
+}
