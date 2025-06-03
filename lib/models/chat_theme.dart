@@ -1,0 +1,4 @@
+enum ChatTheme {
+  day,
+  night,
+} 
