@@ -145,6 +145,7 @@ class _JoinLobbyScreenState extends ConsumerState<JoinLobbyScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).primaryColor;
+    final authService = ref.watch(authServiceProvider);
     final publicLobbies = ref.watch(publicLobbiesProvider);
 
     return Scaffold(
@@ -152,8 +153,23 @@ class _JoinLobbyScreenState extends ConsumerState<JoinLobbyScreen> {
         title: const Text('Rejoindre une partie'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: IconThemeData(
+          color: isDark ? Colors.white : primaryColor,
+        ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.person, color: isDark ? Colors.white : primaryColor),
+            onPressed: () {
+              // TODO: Naviguer vers le profil
+            },
+          ),
           const ThemeToggleButton(),
+          IconButton(
+            icon: Icon(Icons.logout, color: isDark ? Colors.white : primaryColor),
+            onPressed: () async {
+              await authService.signOut();
+            },
+          ),
         ],
       ),
       body: AnimatedBackground(
@@ -210,6 +226,7 @@ class _JoinLobbyScreenState extends ConsumerState<JoinLobbyScreen> {
                             vertical: 16,
                           ),
                           backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
                         ),
                         child: _isJoining
                             ? const SizedBox(
