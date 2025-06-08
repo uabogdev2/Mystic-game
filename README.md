@@ -220,7 +220,7 @@ Ce projet est sous licence **MIT** - voir le fichier [LICENSE](LICENSE) pour plu
 
 **Développé avec ❤️ par Ulrich Abognon**
 
-[🐙 GitHub]([https://github.com/uabogdev2))  • [🐦 Twitter](https://x.com/Abbrice_auth)
+[🐙 GitHub](https://github.com/uabogdev2)  • [🐦 Twitter](https://x.com/Abbrice_auth)
 
 </div>
 
