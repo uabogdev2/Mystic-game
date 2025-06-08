@@ -1,190 +1,196 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/theme_constants.dart';
-import '../../theme/theme_controller.dart';
+import '../../constants/design_constants.dart'; // Import design constants
+// TODO: Update import to core/constants path after refactoring
 
-class ThemedButton extends ConsumerStatefulWidget {
-  final String text;
-  final VoidCallback onPressed;
-  final bool isLoading;
-  final IconData? icon;
-  final bool isPrimary;
+class ThemedButton extends StatefulWidget {
+  final VoidCallback? onPressed; // Allow null onPressed for disabled state
+  final Widget child;
+  final ButtonStyle? style;
+  final Gradient? gradient;
+  final bool isPulsing;
+  final String? tooltip; // Added tooltip property
 
   const ThemedButton({
-    Key? key,
-    required this.text,
+    super.key,
     required this.onPressed,
-    this.isLoading = false,
-    this.icon,
-    this.isPrimary = true,
-  }) : super(key: key);
+    required this.child,
+    this.style,
+    this.gradient,
+    this.isPulsing = false,
+    this.tooltip, // Added tooltip
+  });
 
   @override
-  ConsumerState<ThemedButton> createState() => _ThemedButtonState();
+  State<ThemedButton> createState() => _ThemedButtonState();
 }
 
-class _ThemedButtonState extends ConsumerState<ThemedButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
+class _ThemedButtonState extends State<ThemedButton> with SingleTickerProviderStateMixin {
   bool _isPressed = false;
+  late AnimationController _pulsingAnimationController;
+  late Animation<double> _pulsingAnimation;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+    _pulsingAnimationController = AnimationController(
       vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.95,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeInOut,
-      ),
-    );
+    _pulsingAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.05), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.05, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(
+      parent: _pulsingAnimationController,
+      curve: Curves.easeInOut,
+    ));
 
-    // Animation de pulsation en continu si en chargement
-    _animationController.addStatusListener((status) {
-      if (widget.isLoading) {
-        if (status == AnimationStatus.completed) {
-          _animationController.reverse();
-        } else if (status == AnimationStatus.dismissed) {
-          _animationController.forward();
-        }
-      }
-    });
-
-    if (widget.isLoading) {
-      _animationController.forward();
+    if (widget.isPulsing && widget.onPressed != null) { // Only pulse if enabled
+      _pulsingAnimationController.repeat(reverse: true);
     }
   }
 
   @override
   void didUpdateWidget(ThemedButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isLoading != oldWidget.isLoading) {
-      if (widget.isLoading) {
-        _animationController.forward();
+    if (widget.isPulsing != oldWidget.isPulsing || widget.onPressed != oldWidget.onPressed) {
+      if (widget.isPulsing && widget.onPressed != null) {
+        _pulsingAnimationController.repeat(reverse: true);
       } else {
-        _animationController.stop();
-        _animationController.reset();
+        _pulsingAnimationController.stop();
+        _pulsingAnimationController.value = 0.0;
       }
     }
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _pulsingAnimationController.dispose();
     super.dispose();
   }
 
-  void _handleTapDown(TapDownDetails details) {
-    if (!widget.isLoading) {
-      setState(() => _isPressed = true);
-      _animationController.forward();
-    }
+  void _onTapDown(TapDownDetails details) {
+    if (widget.onPressed == null) return;
+    setState(() => _isPressed = true);
   }
 
-  void _handleTapUp(TapUpDetails details) {
-    if (!widget.isLoading) {
-      setState(() => _isPressed = false);
-      _animationController.reverse();
-    }
+  void _onTapUp(TapUpDetails details) {
+    if (widget.onPressed == null) return;
+    setState(() => _isPressed = false);
+    // widget.onPressed!(); // The ElevatedButton handles its own onPressed call.
   }
 
-  void _handleTapCancel() {
-    if (!widget.isLoading) {
-      setState(() => _isPressed = false);
-      _animationController.reverse();
-    }
+  void _onTapCancel() {
+    if (widget.onPressed == null) return;
+    setState(() => _isPressed = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = ref.watch(themeControllerProvider);
-    final gradient = widget.isPrimary
-        ? isDarkMode
-            ? ThemeConstants.nightPrimaryGradient
-            : ThemeConstants.dayPrimaryGradient
-        : isDarkMode
-            ? ThemeConstants.nightSecondaryGradient
-            : ThemeConstants.daySecondaryGradient;
+    final theme = Theme.of(context);
+    final pressScale = _isPressed ? 0.95 : 1.0;
+    final bool isDisabled = widget.onPressed == null;
 
-    return GestureDetector(
-      onTapDown: _handleTapDown,
-      onTapUp: _handleTapUp,
-      onTapCancel: _handleTapCancel,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Container(
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(25),
-            boxShadow: [
-              if (!isDarkMode)
-                BoxShadow(
-                  color: gradient.colors.first.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                )
-              else
-                BoxShadow(
-                  color: gradient.colors.first.withOpacity(0.5),
-                  blurRadius: 12,
-                  spreadRadius: -2,
-                ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(25),
-              onTap: widget.isLoading ? null : widget.onPressed,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (widget.icon != null && !widget.isLoading) ...[
-                        Icon(
-                          widget.icon,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (widget.isLoading)
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            strokeWidth: 2,
-                          ),
-                        )
-                      else
-                        Text(
-                          widget.text,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+    Color? buttonBackgroundColor = widget.style?.backgroundColor?.resolve({}) ?? theme.colorScheme.primary;
+    Color? buttonForegroundColor = widget.style?.foregroundColor?.resolve({}) ?? theme.colorScheme.onPrimary;
+
+    if (isDisabled) {
+      buttonBackgroundColor = theme.colorScheme.onSurface.withOpacity(0.12);
+      buttonForegroundColor = theme.colorScheme.onSurface.withOpacity(0.38);
+    } else if (widget.gradient != null) {
+      buttonBackgroundColor = Colors.transparent;
+    }
+
+    final ButtonStyle effectiveStyle = ElevatedButton.styleFrom(
+      backgroundColor: buttonBackgroundColor,
+      foregroundColor: buttonForegroundColor,
+      disabledBackgroundColor: theme.colorScheme.onSurface.withOpacity(0.12),
+      disabledForegroundColor: theme.colorScheme.onSurface.withOpacity(0.38),
+      padding: const EdgeInsets.symmetric(horizontal: kSpacingMedium, vertical: kSpacingSmall),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kBorderRadiusMedium),
       ),
+      elevation: widget.gradient != null ? 0 : widget.style?.elevation?.resolve({}),
+      shadowColor: widget.gradient != null ? Colors.transparent : widget.style?.shadowColor?.resolve({}),
+    ).merge(widget.style);
+
+    // The core button, which might be an ElevatedButton or just its child for gradient effect
+    Widget coreButtonChild = widget.child;
+    Widget buttonItself = ElevatedButton(
+      style: effectiveStyle,
+      onPressed: widget.onPressed,
+      child: coreButtonChild,
     );
+
+    // Apply gradient if provided and not disabled
+    if (widget.gradient != null && !isDisabled) {
+      buttonItself = Container(
+        decoration: BoxDecoration(
+          gradient: widget.gradient,
+          borderRadius: BorderRadius.circular(kBorderRadiusMedium),
+          boxShadow: widget.style?.elevation?.resolve({}) != null && widget.style?.elevation?.resolve({})! > 0
+              ? [
+                  BoxShadow(
+                    color: widget.style?.shadowColor?.resolve({}) ?? Colors.black.withOpacity(0.2),
+                    blurRadius: widget.style?.elevation?.resolve({})! * 2,
+                    spreadRadius: 0,
+                    offset: Offset(0, widget.style?.elevation?.resolve({})! / 2),
+                  )
+                ]
+              : [],
+        ),
+        child: ElevatedButton( // ElevatedButton here for behavior, styled to be transparent over gradient
+          style: effectiveStyle.copyWith(
+            backgroundColor: MaterialStateProperty.all(Colors.transparent),
+            elevation: MaterialStateProperty.all(0), // Elevation handled by container
+          ),
+          onPressed: widget.onPressed,
+          child: widget.child,
+        ),
+      );
+    }
+
+    Widget animatedButton = AnimatedScale(
+      scale: pressScale,
+      duration: const Duration(milliseconds: 100),
+      child: buttonItself,
+    );
+
+    if (widget.isPulsing && !isDisabled) {
+      animatedButton = ScaleTransition(
+        scale: _pulsingAnimation,
+        child: animatedButton,
+      );
+    }
+
+    // Add Semantics and Tooltip
+    // If widget.child is Text, its data can be used for semantics if tooltip is null.
+    String? semanticLabel = widget.tooltip;
+    if (semanticLabel == null && widget.child is Text) {
+      semanticLabel = (widget.child as Text).data;
+    }
+
+    // The GestureDetector is for the press down/up animation state.
+    // The ElevatedButton handles the actual onPressed and focus.
+    // Tooltip is applied to the ElevatedButton itself (or its container).
+    Widget finalButton = GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: animatedButton,
+    );
+
+    if (widget.tooltip != null) {
+      finalButton = Tooltip(
+        message: widget.tooltip!,
+        child: finalButton,
+      );
+    }
+
+    // Add a comment regarding text scaling and button padding/min size.
+    // TODO (Accessibility): Review padding (kSpacingMedium, kSpacingSmall) and consider minimumSize
+    // constraints in ButtonStyle to ensure good tap targets and text wrapping if font sizes are increased significantly by user settings.
+
+    return finalButton;
   }
-} 
+}

@@ -1,87 +1,60 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/theme_constants.dart';
-import '../../theme/theme_controller.dart';
+import '../../constants/design_constants.dart'; // Import design constants
+// TODO: Update import to core/constants path after refactoring
 
-enum SlideDirection { left, right, up, down }
-
-class ThemedCard extends ConsumerStatefulWidget {
+class ThemedCard extends StatefulWidget {
   final Widget child;
-  final SlideDirection slideDirection;
-  final Duration slideDuration;
-  final double elevation;
-  final EdgeInsetsGeometry padding;
-  final VoidCallback? onTap;
-  final bool animate;
+  final EdgeInsetsGeometry? padding;
+  final Color? color;
+  final double? elevation;
+  final ShapeBorder? shape;
+  final bool animateEntry;
+  final Duration animationDuration;
 
   const ThemedCard({
-    Key? key,
+    super.key,
     required this.child,
-    this.slideDirection = SlideDirection.up,
-    this.slideDuration = const Duration(milliseconds: 500),
-    this.elevation = 4,
-    this.padding = const EdgeInsets.all(16),
-    this.onTap,
-    this.animate = true,
-  }) : super(key: key);
+    this.padding,
+    this.color,
+    this.elevation,
+    this.shape,
+    this.animateEntry = true,
+    this.animationDuration = const Duration(milliseconds: 400),
+  });
 
   @override
-  ConsumerState<ThemedCard> createState() => _ThemedCardState();
+  State<ThemedCard> createState() => _ThemedCardState();
 }
 
-class _ThemedCardState extends ConsumerState<ThemedCard>
-    with SingleTickerProviderStateMixin {
+class _ThemedCardState extends State<ThemedCard> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
-  late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: widget.slideDuration,
       vsync: this,
+      duration: widget.animationDuration,
     );
 
-    // Définir la direction du slide
-    final Offset beginOffset;
-    switch (widget.slideDirection) {
-      case SlideDirection.left:
-        beginOffset = const Offset(-1.0, 0.0);
-        break;
-      case SlideDirection.right:
-        beginOffset = const Offset(1.0, 0.0);
-        break;
-      case SlideDirection.up:
-        beginOffset = const Offset(0.0, 1.0);
-        break;
-      case SlideDirection.down:
-        beginOffset = const Offset(0.0, -1.0);
-        break;
-    }
-
-    _slideAnimation = Tween<Offset>(
-      begin: beginOffset,
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _slideAnimation = Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    if (widget.animate) {
-      _animationController.forward();
+    if (widget.animateEntry) {
+      // // Hypothetical check for reduce motion setting (Conceptual)
+      // final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      // if (reduceMotion) {
+      //   _animationController.value = 1.0; // Skip animation
+      // } else {
+      //   _animationController.forward();
+      // }
+      _animationController.forward(); // Original behavior
     } else {
       _animationController.value = 1.0;
     }
@@ -95,49 +68,99 @@ class _ThemedCardState extends ConsumerState<ThemedCard>
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = ref.watch(themeControllerProvider);
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+    final CardTheme cardTheme = theme.cardTheme;
 
-    return SlideTransition(
-      position: _slideAnimation,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDarkMode
-                    ? ThemeConstants.nightCardColor
-                    : ThemeConstants.dayCardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  if (isDarkMode)
-                    BoxShadow(
-                      color: ThemeConstants.nightAccent.withOpacity(0.2),
-                      blurRadius: widget.elevation * 2,
-                      spreadRadius: -widget.elevation,
-                    )
-                  else
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: widget.elevation,
-                      offset: const Offset(0, 2),
-                    ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: widget.padding,
-                  child: widget.child,
-                ),
-              ),
-            ),
-          ),
+    final cardColor = widget.color ?? cardTheme.color ?? theme.cardColor;
+    final cardElevation = widget.elevation ?? cardTheme.elevation ?? 4.0;
+
+    List<BoxShadow>? cardShadows;
+
+    if (isDarkMode) {
+      cardShadows = [
+        BoxShadow(
+          color: theme.colorScheme.primary.withOpacity(0.3),
+          blurRadius: kBorderRadiusMedium,
+          spreadRadius: kSpacingXXXS,
         ),
+        BoxShadow(
+          color: Colors.white.withOpacity(0.05),
+          blurRadius: kBorderRadiusLarge,
+          spreadRadius: kSpacingXXS,
+        ),
+      ];
+    } else {
+      // Light theme shadows are typically handled well by Card's default elevation.
+      // If more pronounced shadows are needed, they can be defined here like for dark mode.
+      // cardShadows = [
+      //   BoxShadow(
+      //     color: Colors.black.withOpacity(0.15),
+      //     blurRadius: cardElevation * 2,
+      //     spreadRadius: 0,
+      //     offset: Offset(0, cardElevation / 2),
+      //   ),
+      // ];
+    }
+
+    // TODO (Accessibility): Review padding (kSpacingMedium) and ensure content within the card
+    // (passed as widget.child) is responsive to text scaling. Ensure interactive elements
+    // within the child have adequate tap target sizes.
+
+    Widget cardContent = Card(
+      color: cardColor,
+      elevation: (isDarkMode && cardShadows != null) ? 0 : cardElevation, // Use container shadow for glow
+      shape: widget.shape ?? cardTheme.shape ?? RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kBorderRadiusMedium),
+      ),
+      margin: cardTheme.margin ?? const EdgeInsets.all(kSpacingXXS), // Use theme margin or a default
+      shadowColor: (isDarkMode && cardShadows != null) ? Colors.transparent : cardTheme.shadowColor,
+      clipBehavior: Clip.antiAlias, // Ensure content respects rounded corners
+      child: Padding(
+        padding: widget.padding ?? const EdgeInsets.all(kSpacingMedium),
+        child: widget.child,
       ),
     );
+
+    if (isDarkMode && cardShadows != null) {
+      cardContent = Container(
+        decoration: BoxDecoration(
+          // This container is primarily for the glow effect.
+          // The actual background color is handled by the Card itself.
+          borderRadius: (widget.shape is RoundedRectangleBorder)
+              ? (widget.shape as RoundedRectangleBorder).borderRadius.resolve(Directionality.maybeOf(context))
+              : BorderRadius.circular(kBorderRadiusMedium), // Fallback or default
+          boxShadow: cardShadows,
+        ),
+        // The Card is placed inside this container.
+        // Margin for the Card itself should be zero as the container handles spacing/shadow.
+        child: Card(
+          color: cardColor,
+          elevation: 0, // Elevation is handled by the outer container's boxShadow for the glow
+          shape: widget.shape ?? cardTheme.shape ?? RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kBorderRadiusMedium),
+          ),
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: widget.padding ?? const EdgeInsets.all(kSpacingMedium),
+            child: widget.child,
+          ),
+        ),
+      );
+    }
+
+
+    if (widget.animateEntry) {
+      return FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: cardContent,
+        ),
+      );
+    } else {
+      return cardContent;
+    }
   }
-} 
+}

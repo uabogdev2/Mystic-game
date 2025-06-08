@@ -1,48 +1,46 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'chat_theme.dart';
+import 'package:flutter/foundation.dart'; // For @required if using older Flutter, or just for clarity
+
+// Enum for different types of chat messages
+enum ChatMessageType {
+  normal,       // A standard user message
+  system,       // General system messages (e.g., "Lobby created")
+  playerJoin,   // Player joined the lobby
+  playerLeave,  // Player left the lobby
+  hostAction,   // An action taken by the host (e.g., "Host started the game")
+  roleReveal,   // For game phase: role reveal messages (e.g., "You are a Loup-Garou") - future use
+  announcement, // Important game announcements - future use
+}
 
 class ChatMessage {
-  final String id;
-  final String senderId;
-  final String senderName;
+  final String messageId;
+  final String senderId;    // Could be "system" for system messages, or a user ID
+  final String senderName;  // e.g., Player's name, "Système", "Hôte"
   final String content;
   final DateTime timestamp;
-  final String type;
-  final ChatTheme? chatTheme;
+  final ChatMessageType messageType;
 
   ChatMessage({
-    required this.id,
+    required this.messageId,
     required this.senderId,
     required this.senderName,
     required this.content,
     required this.timestamp,
-    required this.type,
-    this.chatTheme,
+    this.messageType = ChatMessageType.normal,
   });
 
-  bool get isSystem => type == 'system';
-
-  factory ChatMessage.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  // Example factory for creating a system message easily
+  factory ChatMessage.system({
+    required String messageId,
+    required String content,
+    ChatMessageType type = ChatMessageType.system, // Allow specifying subtype like playerJoin/Leave
+  }) {
     return ChatMessage(
-      id: doc.id,
-      senderId: data['senderId'] ?? '',
-      senderName: data['senderName'] ?? '',
-      content: data['content'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      type: data['type'] ?? 'user',
-      chatTheme: data['chatTheme'] != null ? ChatTheme.values[data['chatTheme']] : null,
+      messageId: messageId,
+      senderId: 'system_id', // Consistent ID for system messages
+      senderName: 'Système',    // Consistent name for system messages
+      content: content,
+      timestamp: DateTime.now(),
+      messageType: type,
     );
   }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'senderId': senderId,
-      'senderName': senderName,
-      'content': content,
-      'timestamp': Timestamp.fromDate(timestamp),
-      'type': type,
-      'chatTheme': chatTheme?.index,
-    };
-  }
-} 
+}
