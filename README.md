@@ -218,21 +218,15 @@ Ce projet est sous licence **MIT** - voir le fichier [LICENSE](LICENSE) pour plu
 
 <div align="center">
 
-**Développé avec ❤️ par [Votre Nom]**
+**Développé avec ❤️ par Ulrich Abognon**
 
-[🐙 GitHub](https://github.com/votre-username) • [💼 LinkedIn](https://linkedin.com/in/votre-profil) • [🐦 Twitter](https://twitter.com/votre-handle)
+[🐙 GitHub]([https://github.com/uabogdev2))  • [🐦 Twitter](https://x.com/Abbrice_auth)
 
 </div>
 
 ---
 
-## 🙏 Remerciements
 
-- 🎮 **Communauté Loup-Garou** pour l'inspiration du gameplay
-- 🦋 **Flutter Team** pour le framework exceptionnel  
-- 🔥 **Firebase** pour l'infrastructure backend
-- 🎨 **Material Design** pour les guidelines UI/UX
-- ✨ **Animate.css** pour l'inspiration animations
 
 ---
 
