@@ -1,397 +1,153 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:async';
-import '../services/lobby_service.dart';
-import '../services/auth_service.dart';
-import '../models/lobby.dart';
-import '../widgets/animated_background.dart';
-import '../widgets/theme_toggle_button.dart';
-import '../theme/theme_constants.dart';
-import 'lobby_screen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart'; // For TextInputFormatters
 
-class JoinLobbyScreen extends ConsumerStatefulWidget {
-  const JoinLobbyScreen({Key? key}) : super(key: key);
+import '../widgets/themed/themed_button.dart';
+import '../widgets/themed/themed_input.dart';
+import '../widgets/themed/themed_card.dart';
+import '../widgets/themed/loading_indicator.dart'; // For placeholder loading
+import '../constants/design_constants.dart';
+import '../utils/snackbar_utils.dart'; // For showing errors
+import 'lobby_screen.dart'; // To navigate to LobbyScreen
+// import '../utils/game_logic_utils.dart'; // Not strictly needed here, but LobbyScreen will use it
+
+class JoinLobbyScreen extends StatefulWidget {
+  static const String routeName = '/join_lobby';
+
+  const JoinLobbyScreen({super.key});
 
   @override
-  ConsumerState<JoinLobbyScreen> createState() => _JoinLobbyScreenState();
+  State<JoinLobbyScreen> createState() => _JoinLobbyScreenState();
 }
 
-class _JoinLobbyScreenState extends ConsumerState<JoinLobbyScreen> {
-  final _codeController = TextEditingController();
-  bool _isJoining = false;
-  Timer? _refreshTimer;
-  bool _isRefreshing = false;
+class _JoinLobbyScreenState extends State<JoinLobbyScreen> {
+  final TextEditingController _lobbyCodeController = TextEditingController();
+  final FocusNode _lobbyCodeFocusNode = FocusNode();
+  bool _isLoading = false; // For simulated join process
 
-  @override
-  void initState() {
-    super.initState();
-    _startRefreshTimer();
-  }
-
-  void _startRefreshTimer() {
-    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) {
-        setState(() => _isRefreshing = true);
-        ref.refresh(publicLobbiesProvider);
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
-            setState(() => _isRefreshing = false);
-          }
-        });
-      }
-    });
-  }
-
-  void _joinLobbyByCode() async {
-    final code = _codeController.text.trim().toUpperCase();
-    if (code.isEmpty) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    setState(() => _isJoining = true);
-
-    try {
-      final lobbyService = ref.read(lobbyServiceProvider);
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('lobbies')
-          .where('code', isEqualTo: code)
-          .where('status', isEqualTo: 'waiting')
-          .get();
-
-      if (querySnapshot.docs.isEmpty) {
-        throw Exception('Aucune partie trouvée avec ce code');
-      }
-
-      final lobbyDoc = querySnapshot.docs.first;
-      final lobby = Lobby.fromFirestore(lobbyDoc);
-
-      if (lobby.isFull()) {
-        throw Exception('La partie est complète');
-      }
-
-      await lobbyService.joinLobby(
-        lobbyId: lobby.id,
-        playerName: user.displayName ?? 'Invité',
+  void _joinLobby() async {
+    final String lobbyCode = _lobbyCodeController.text.trim();
+    if (lobbyCode.length != 6) {
+      SnackbarUtils.showThemedSnackbar(
+        context,
+        'Le code du salon doit comporter 6 chiffres.',
+        type: SnackbarType.error,
       );
-
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LobbyScreen(lobbyId: lobby.id),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isJoining = false);
-      }
+      return;
     }
-  }
 
-  Future<void> _joinPublicLobby(Lobby lobby) async {
-    if (_isJoining) return;
+    setState(() => _isLoading = true);
+    // Simulate network request or validation
+    await Future.delayed(const Duration(seconds: 1));
+    setState(() => _isLoading = false);
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // Placeholder: Assume validation passed and we got lobby details
+    // In a real app, you'd fetch lobby details using the code.
+    // For now, we'll navigate with placeholder data.
+    // Max players and roles would typically come from the server/host.
+    // We pass a placeholder name, and the player's actual name would be added.
 
-    setState(() => _isJoining = true);
+    // Example: Fetch roles based on a placeholder player count (e.g. 8) if not provided by lobby data
+    // final roles = calculateRoles(8);
 
-    try {
-      final lobbyService = ref.read(lobbyServiceProvider);
-      await lobbyService.joinLobby(
-        lobbyId: lobby.id,
-        playerName: user.displayName ?? 'Invité',
-      );
-
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LobbyScreen(lobbyId: lobby.id),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isJoining = false);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).primaryColor;
-    final authService = ref.watch(authServiceProvider);
-    final publicLobbies = ref.watch(publicLobbiesProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-
-title: Text(
-  'Rejoindre une partie',
-  style: TextStyle(
-    color: isDark ? Colors.white : primaryColor,
-    fontWeight: FontWeight.bold,
-  ),
-),
-backgroundColor: isDark ? Colors.black26 : Colors.white.withOpacity(0.9),
-
-
-        elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDark ? Colors.white : primaryColor,
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.person, color: isDark ? Colors.white : primaryColor),
-            onPressed: () {
-              // TODO: Naviguer vers le profil
-            },
-          ),
-          const ThemeToggleButton(),
-          IconButton(
-            icon: Icon(Icons.logout, color: isDark ? Colors.white : primaryColor),
-            onPressed: () async {
-              await authService.signOut();
-            },
-          ),
-        ],
-      ),
-      body: AnimatedBackground(
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: isDark
-                        ? ThemeConstants.nightCardColor
-                        : ThemeConstants.dayCardColor,
-                  ),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Code de la partie',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _codeController,
-                        textCapitalization: TextCapitalization.characters,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Entrez le code...',
-                          hintStyle: TextStyle(
-                            color: isDark ? Colors.white60 : Colors.black45,
-                          ),
-                          filled: true,
-                          fillColor: isDark
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.grey.withOpacity(0.1),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _isJoining ? null : _joinLobbyByCode,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 16,
-                          ),
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: _isJoining
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text(
-                                'Rejoindre',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Parties publiques',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: publicLobbies.when(
-                    data: (lobbies) {
-                      if (lobbies.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Aucune partie publique disponible',
-                                style: TextStyle(
-                                  color: isDark ? Colors.white70 : Colors.black54,
-                                ),
-                              ),
-                              if (_isRefreshing)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        isDark ? Colors.white70 : Colors.black54,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      return RefreshIndicator(
-                        onRefresh: () async {
-                          setState(() => _isRefreshing = true);
-                          ref.refresh(publicLobbiesProvider);
-                          await Future.delayed(const Duration(seconds: 1));
-                          if (mounted) {
-                            setState(() => _isRefreshing = false);
-                          }
-                        },
-                        child: ListView.builder(
-                          itemCount: lobbies.length,
-                          itemBuilder: (context, index) {
-                            final lobby = lobbies[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              color: isDark
-                                  ? ThemeConstants.nightCardColor
-                                  : ThemeConstants.dayCardColor,
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.all(16),
-                                title: Text(
-                                  'Partie de ${lobby.playerNames.first}',
-                                  style: TextStyle(
-                                    color: isDark ? Colors.white : Colors.black87,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    '${lobby.playerIds.length}/${lobby.maxPlayers} joueurs',
-                                    style: TextStyle(
-                                      color: isDark ? Colors.white70 : Colors.black54,
-                                    ),
-                                  ),
-                                ),
-                                trailing: ElevatedButton(
-                                  onPressed: _isJoining || lobby.isFull()
-                                      ? null
-                                      : () => _joinPublicLobby(lobby),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isDark
-                                        ? ThemeConstants.nightPrimaryGradient.colors.first
-                                        : ThemeConstants.dayPrimaryGradient.colors.first,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    lobby.isFull() ? 'Complet' : 'Rejoindre',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    error: (error, stack) => Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Erreur de chargement',
-                            style: TextStyle(
-                              color: isDark ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => ref.refresh(publicLobbiesProvider),
-                            child: const Text('Réessayer'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LobbyScreen(
+          lobbyCode: lobbyCode,
+          lobbyName: "Salon #$lobbyCode", // Placeholder name
+          maxPlayers: 8, // Placeholder max players
+          initialPlayerNames: const ["Joueur X"], // Placeholder for current user joining
+          isHost: false,
+          // currentRoles: roles, // Roles would be determined by the lobby's host/settings
         ),
       ),
     );
   }
-} 
+
+  @override
+  void dispose() {
+    _lobbyCodeController.dispose();
+    _lobbyCodeFocusNode.dispose();
+    super.dispose();
+  }
+
+  Widget _buildPlaceholderPublicLobbies(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Salons Publics (Bientôt disponible)',
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: kSpacingSmall),
+        SizedBox(
+          height: 150, // Fixed height for the placeholder list
+          child: ListView.builder(
+            itemCount: 3, // Show a few placeholder cards
+            itemBuilder: (context, index) {
+              return ThemedCard(
+                padding: kPaddingAllSmall,
+                margin: const EdgeInsets.only(bottom: kSpacingSmall),
+                child: ListTile(
+                  leading: Icon(Icons.public, color: theme.colorScheme.secondary),
+                  title: Text('Salon Public ${index + 1}', style: theme.textTheme.titleMedium),
+                  subtitle: Text('Joueurs: ${5 + index}/10', style: theme.textTheme.bodyMedium),
+                  trailing: Icon(Icons.chevron_right, color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                  onTap: () {
+                     SnackbarUtils.showThemedSnackbar(context, 'Fonctionnalité à venir!', type: SnackbarType.info);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rejoindre un Salon'),
+        backgroundColor: theme.colorScheme.surface.withOpacity(0.5),
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
+        padding: kPaddingAllMedium,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            ThemedInput(
+              controller: _lobbyCodeController,
+              focusNode: _lobbyCodeFocusNode,
+              labelText: 'Code du Salon',
+              hintText: 'Entrez le code à 6 chiffres',
+              prefixIcon: Icons.sensor_door_outlined,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              textInputAction: TextInputAction.join,
+              onSubmitted: (_) => _isLoading ? null : _joinLobby(),
+            ),
+            const SizedBox(height: kSpacingMedium),
+            _isLoading
+                ? const Center(child: LoadingIndicator(size: 48))
+                : ThemedButton(
+                    onPressed: _joinLobby,
+                    isPulsing: true, // Make it a primary call to action
+                    child: const Text('Rejoindre le Salon', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+            const SizedBox(height: kSpacingXL),
+            const Divider(thickness: 1, height: kSpacingXL),
+            const SizedBox(height: kSpacingSmall),
+            _buildPlaceholderPublicLobbies(theme),
+          ],
+        ),
+      ),
+    );
+  }
+}
